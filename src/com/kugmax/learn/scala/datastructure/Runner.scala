@@ -34,7 +34,9 @@ object Runner {
 //    System.out.println(List.foldRight(List(1,2,4,3,20), Nil:List[Int])(Cons(_,_)))
 //    System.out.println( List.reduceList( List(List(1, 2), List(4), List(3, 20))  ))
 
-    System.out.println(List.map(List(1,2,3)) (a  => a + 10) )
-    System.out.println(List.map(List(1.0,2.0,3.0)) (a  => a.toString) )
+//    System.out.println(List.map(List(1,2,3)) (a  => a + 10) )
+//    System.out.println(List.map(List(1.0,2.0,3.0)) (a  => a.toString) )
+
+    System.out.println(List.filter(List(1,2,3)) (a  => a <= 1) )
   }
 }
