@@ -91,6 +91,9 @@ object List {
   def foldRight2[A, B](l: List[A], z: B)(f: (A, B) => B): B =
     foldLeft(l, (b:B) => b)((g,a) => b => g(f(a,b)))(z)
 
+  def reduceList[A](l: List[List[A]]): List[A] =
+    foldLeft2(l, Nil:List[A])( (accumulator:List[A], innerList:List[A]) => List.append(accumulator, innerList) )
+
   def reverse[A](l : List[A]): List[A] = l match {
     case Nil => Nil
     case Cons(x, Nil) => Cons(x, Nil)
