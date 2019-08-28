@@ -97,7 +97,6 @@ object List {
   def reverse[A](l : List[A]): List[A] = l match {
     case Nil => Nil
     case Cons(x, Nil) => Cons(x, Nil)
-//    case _  => foldLeft(l, Nil:List[A] )( (b: List[A], a: A ) => Cons(a, b)  )
     case _  => foldLeft2(l, Nil:List[A] )( (b: List[A], a: A ) => Cons(a, b)  )
   }
 
@@ -106,5 +105,10 @@ object List {
 
   def filter[A] (l: List[A]) (f: A => Boolean): List[A] =
     foldRight(l, Nil:List[A])( (h, acc) => if (f(h)) Cons(h, acc) else acc )
-//    foldRight(l, Nil:List[A])( (h, acc) => f(h) == true ?  )
+
+  def flatMap[A,B](l: List[A])(f: A => List[B]): List[B] =
+    foldRight(l, Nil:List[B])( (h, acc) => append(f(h), acc ) )
+
+  def filter2[A] (l: List[A]) (f: A => Boolean): List[A] =
+    flatMap(l)( a => if (f(a)) List(a) else Nil )
 }

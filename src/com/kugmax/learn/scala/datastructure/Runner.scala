@@ -37,6 +37,10 @@ object Runner {
 //    System.out.println(List.map(List(1,2,3)) (a  => a + 10) )
 //    System.out.println(List.map(List(1.0,2.0,3.0)) (a  => a.toString) )
 
-    System.out.println(List.filter(List(1,2,3)) (a  => a <= 1) )
+    System.out.println(List.filter(List(1,2,3)) (a  => a >= 2) )
+    System.out.println(List.filter2(List(1,2,3)) (a  => a >= 2) )
+
+//    System.out.println(List(1,1,2,2,3,3) )
+//    System.out.println(List.flatMap(List(1,2,3))(i => List(i, i)) )
   }
 }
