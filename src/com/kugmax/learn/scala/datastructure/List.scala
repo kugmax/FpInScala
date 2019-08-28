@@ -19,6 +19,12 @@ object List {
       case Cons(h, t) => Cons(h, append(t, a2))
     }
 
+  def append2[A](a1: List[A], a2: List[A]): List[A] =
+    foldRight2(a1, a2)( Cons(_, _) )
+
+  def append3[A](a1: List[A], a2: List[A]): List[A] =
+    foldLeft(a1, a2)( (b: List[A], a: A) => Cons(a, b) )
+
   def sum2(ns: List[Int]) =
     foldRight(ns, 0)((x, y) => x + y)
 
@@ -75,13 +81,21 @@ object List {
   def foldRight[A, B](as: List[A], z: B)(f: (A, B) => B): B =
     as match {
       case Nil => z
-      case Cons(x, xs) => f(x, foldRight(xs, z)(f))
-    }
+      case Cons(x, xs) =>
+        f(x, foldRight(xs, z)(f))
+  }
+
+  def foldLeft2[A, B](l: List[A], z: B)(f: (B, A) => B): B =
+    foldRight(l, (b:B) => b)((a,g) => b => g(f(b,a)))(z)
+
+  def foldRight2[A, B](l: List[A], z: B)(f: (A, B) => B): B =
+    foldLeft(l, (b:B) => b)((g,a) => b => g(f(a,b)))(z)
 
   def reverse[A](l : List[A]): List[A] = l match {
     case Nil => Nil
     case Cons(x, Nil) => Cons(x, Nil)
-    case _  => foldLeft(l, Nil:List[A] )( (b: List[A], a: A ) => Cons(a, b)  )
+//    case _  => foldLeft(l, Nil:List[A] )( (b: List[A], a: A ) => Cons(a, b)  )
+    case _  => foldLeft2(l, Nil:List[A] )( (b: List[A], a: A ) => Cons(a, b)  )
   }
 
   def map[A, B](l: List[A])(f: A => B): List[B] = ???
