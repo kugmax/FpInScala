@@ -37,6 +37,11 @@ object List {
     case Cons(x, xs) => xs
   }
 
+  def head[A](l: List[A], default:A): A = l match {
+    case Nil => default
+    case Cons(x, _) => x
+  }
+
   def setHead[A](l: List[A], h: A): List[A] = l match {
     case Nil => Cons(h, Nil)
     case Cons(x, xs) => Cons(h, xs)
@@ -111,4 +116,35 @@ object List {
 
   def filter2[A] (l: List[A]) (f: A => Boolean): List[A] =
     flatMap(l)( a => if (f(a)) List(a) else Nil )
+
+  def elementSum(a: List[Int], b: List[Int]): List[Int] = (a,b) match {
+    case (Nil, _) => Nil
+    case (_, Nil) => Nil
+    case (Cons(h1,t1), Cons(h2,t2)) => Cons(h1+h2, elementSum(t1,t2))
+  }
+
+  def zipWith[A, B, C](l1: List[A], l2:List[B])(f: (A,B) => C ): List[C] = (l1,l2) match {
+    case (Nil, _) => Nil
+    case (_, Nil) => Nil
+    case (Cons(h1,t1), Cons(h2,t2)) => Cons( f(h1, h2) , zipWith(t1,t2)(f)  )
+  }
+
+//  def elementSum(l1: List[Int], l2: List[Int]): List[Int] =
+//    foldLeft(l1, (Nil:List[Int], l2) ) (
+//      (acc2, h1) => {
+//        System.out.println("h1 " + h1)
+//        System.out.println("acc2 " + acc2)
+//        val result =
+//          (
+//          Cons(h1 + List.head(acc2._2, 0), acc2._1 ),
+//            List.tail(acc2._2)
+//          )
+//
+
+//        System.out.println("result " + result)
+//        result
+//      }
+//    )._1
+
+
 }
