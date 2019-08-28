@@ -101,5 +101,7 @@ object List {
     case _  => foldLeft2(l, Nil:List[A] )( (b: List[A], a: A ) => Cons(a, b)  )
   }
 
-  def map[A, B](l: List[A])(f: A => B): List[B] = ???
+  def map[A, B](l: List[A])(f: A => B): List[B] =
+    foldRight(l, Nil:List[B])( (h, acc) => Cons( f(h) , acc) )
+
 }
