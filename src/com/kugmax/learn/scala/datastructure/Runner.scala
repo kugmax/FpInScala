@@ -43,7 +43,13 @@ object Runner {
 //    System.out.println(List(1,1,2,2,3,3) )
 //    System.out.println(List.flatMap(List(1,2,3))(i => List(i, i)) )
 
-    System.out.println(List.elementSum(List(1,2,3), List(40, 50, 60) ) )
-    System.out.println(List.zipWith(List(1,2,3), List(40, 50, 60))(_+_)  )
+//    System.out.println(List.elementSum(List(1,2,3), List(40, 50, 60) ) )
+//    System.out.println(List.zipWith(List(1,2,3), List(40, 50, 60))(_+_)  )
+
+    System.out.println(List.hasSubsequence(List(1, 2, 3, 4), List(2, 3)) )
+    System.out.println(List.hasSubsequence(List(1, 2, 3, 4), List(2, 4)) )
+    System.out.println(List.hasSubsequence(List(1, 2, 3, 4), List(4)) )
+    System.out.println(List.hasSubsequence(List(1, 2, 3, 4), List(1, 2, 3, 4)) )
+
   }
 }

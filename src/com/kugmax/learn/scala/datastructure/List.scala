@@ -129,22 +129,23 @@ object List {
     case (Cons(h1,t1), Cons(h2,t2)) => Cons( f(h1, h2) , zipWith(t1,t2)(f)  )
   }
 
-//  def elementSum(l1: List[Int], l2: List[Int]): List[Int] =
-//    foldLeft(l1, (Nil:List[Int], l2) ) (
-//      (acc2, h1) => {
-//        System.out.println("h1 " + h1)
-//        System.out.println("acc2 " + acc2)
-//        val result =
-//          (
-//          Cons(h1 + List.head(acc2._2, 0), acc2._1 ),
-//            List.tail(acc2._2)
-//          )
-//
+  def hasSubsequence[A](l: List[A], sub: List[A]): Boolean = {
 
-//        System.out.println("result " + result)
-//        result
-//      }
-//    )._1
+    def loopInner(decI:List[A], accI: List[A]): Boolean = {
+      if (accI == sub) true
+      else decI match {
+        case Nil => false
+        case Cons(x, _) => loopInner(tail(decI), append(accI, Cons(x, Nil)))
+      }
+    }
 
+    def loop(dec:List[A], acc: List[A]): Boolean = dec match {
+      case Nil => false
+      case _ =>
+        if (loopInner(dec, Nil:List[A] ) ) true
+        else loop(tail(dec), Nil:List[A] )
+    }
 
+    loop(l, Nil:List[A])
+  }
 }
