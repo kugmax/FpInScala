@@ -43,4 +43,13 @@ object Tree {
 //    case Leaf(v) => Leaf( f(v) )
 //    case Branch(l, r) => Branch( map(l)(t), map(r)(t) )
 //  }
+
+
+  def fold[A,B](t: Tree[A], z:B)(f: (A,B) => B)(g:(B, B) => B) : Tree[B] = {
+    case Leaf(v) => f(v, z)
+    case Branch(l:Tree[A],r:Tree[A]) => g(fold(l, z)(f)(g), fold(r, z)(f)(g) )
+//    case Branch(l:Tree[A], _) => fold(l, z)(f)
+//    case Branch(_, r:Tree[A]) => fold(r, z)(f)
+
+  }
 }
