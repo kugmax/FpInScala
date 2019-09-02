@@ -38,6 +38,40 @@ sealed trait Option[+A] {
       m => mean(xs.map(x => math.pow(x - m, 2)))
     )
   }
+
+  def map2[A,B,C](a: Option[A], b: Option[B])(f: (A, B) => C): Option[C] = (a, b) {
+    case (None, _) => None
+    case (_, None) => None
+    case (Some(v1), Some(v2)) => Some(f(v1, v2))
+  }
+
+
+  def map3[A,B,C](a: Option[A], b: Option[B])(f: (A, B) => C): Option[C] =
+    a flatMap (aa =>
+      b map (bb =>
+        f(aa, bb)))
+
+  def map4[A,B,C](a: Option[A], b: Option[B])(f: (A, B) => C): Option[C] =
+    for {
+      aa <- a
+      bb <- b
+    } yield f(aa, bb)
+
+  def sequence_1[A](a: List[Option[A]]): Option[List[A]] = {
+
+    try Some(a.map( a => a.getOrElse(throw new Exception("Can't"))))
+    catch {case e: Exception => None}
+
+  }
+
+  def sequence[A](a: List[Option[A]]): Option[List[A]] = {
+    a.foldRight[Option[List[A]]](Some(Nil)) ((x, acc) => map2(x, acc)(_ :: _))
+  }
+
+
+  def traverse[A, B](a: List[A])(f: A => Option[B]): Option[List[B]] = {
+    a.foldRight[Option[List[B]]](Some(Nil)) ((x, acc) => map2(f(x), acc)(_ :: _) )
+  }
 }
 case class Some[+A](get: A) extends Option[A]
 case object None extends Option[Nothing]
