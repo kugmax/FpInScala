@@ -76,7 +76,7 @@ object List {
 
   def length[A](l: List[A]): Int = foldRight(l, 0) ((_, b) =>  b +1)
 
-  def length2[A](l: List[A]): Int = foldLeft(l, 0) ((b, a) =>  b +1)
+  def length2[A](l: List[A]): Int = foldLeft(l, 0) ((b, _) =>  b +1)
 
   def foldLeft[A, B](l: List[A], z: B)(f: (B, A) => B): B = l match {
     case Nil => z

@@ -29,12 +29,28 @@ sealed trait Either[+E,+A] {
 case class Left[+E](get: E) extends Either[E,Nothing]
 case class Right[+A](get: A) extends Either[Nothing,A]
 
-object Either {
+object Runner {
   def traverse[E,A,B](es: List[A])(f: A => Either[E, B]): Either[E, List[B]] = {
-    es.foldRight( Right(Nil:List[B]) ) ( (a, acc) => acc.map2( Right(a) ) ( (l, b) => l.appended(b) ) )
+
+    es.foldRight[ Either[E, List[B]] ] (Right(Nil:List[B])) ( (e, acc) => acc.map2( f(e) )  ((l, b) => l.appended(b))  )
   }
 
-  def sequence[E,A](es: List[Either[E,A]]): Either[E,List[A]] = ???
+  def sequence[E,A](es: List[Either[E,A]]): Either[E,List[A]] = {
+    es.foldRight[Either[E, List[A]]] ( Right(Nil:List[A]) ) ( (e, acc) => acc.map2(e)  ((l, b) => l.appended(b))  )
+  }
+
+  def traverse_2[E,A,B](es: List[A])(f: A => Either[E, B]): Either[E, List[B]] =
+    es match {
+      case Nil => Right(Nil)
+      case h::t => (f(h) map2 traverse(t)(f))(_ :: _)
+    }
+
+  def traverse_1[E,A,B](es: List[A])(f: A => Either[E, B]): Either[E, List[B]] =
+    es.foldRight[Either[E,List[B]]](Right(Nil))((a, b) => f(a).map2(b)(_ :: _))
+
+  def sequence_1[E,A](es: List[Either[E,A]]): Either[E,List[A]] =
+    traverse(es)(x => x)
+
 
   def mean(xs: IndexedSeq[Double]): Either[String, Double] =
     if (xs.isEmpty)
@@ -53,11 +69,14 @@ object Either {
 
   def main(args: Array[String]): Unit = {
     System.out.println(
-      Right(1).map2( Right(2) )(_+_)
+      sequence(
+//        List(Right(1), Right(2), Left("Broken"))
+        List(Right(1), Right(2))
+      )
     )
 
     System.out.println(
-      Either.traverse(List(1, 2, 3)) ( a => Right(a + 1) )
+      traverse(List(1, 2, 3)) ( (x) => Right(x +1) )
     )
 
   }
