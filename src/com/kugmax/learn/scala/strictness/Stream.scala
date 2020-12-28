@@ -1,5 +1,7 @@
 package com.kugmax.learn.scala.strictness
 
+import com.kugmax.learn.scala.strictness.Stream.unfold
+
 sealed trait Stream[+A] {
   def headOption: Option[A] = this match {
     case Empty => None
@@ -68,6 +70,33 @@ sealed trait Stream[+A] {
 
   def find(p: A => Boolean): Option[A] =
     filter(p).headOption
+
+  def mapViaUnfold[B](f: A => B): Stream[B] =
+    unfold(this) {
+      case Cons(h,t) => Some((f(h()), t()))
+      case _ => None
+    }
+
+  def takeViaUnfold(n: Int): Stream[A] = unfold(this) {
+    case Cons(h, t) => if (n <= 0) None else Some(h(), t().takeViaUnfold(n-1))
+    case _ => None
+  }
+
+  def takeWhileViaUnfold(p: A => Boolean): Stream[A] = unfold(this) {
+    case Cons(h, t) => if (!p(h())) None else Some(h(), t().takeWhileViaUnfold(p))
+    case _ => None
+  }
+
+  def zipWith[B, C](l2:Stream[B]) (f: (A,B) => C ): Stream[C] = {
+    null
+  }
+
+  //  def zipWith[B, C](l2:Stream[B])(f: (A,B) => C ): Stream[C] = (l1,l2) match {
+//    case (Nil, _) => Nil
+//    case (_, Nil) => Nil
+//    case (Cons(h1,t1), Cons(h2,t2)) => Cons( f(h1, h2) , zipWith(t1,t2)(f)  )
+//  }
+
 }
 case object Empty extends Stream[Nothing]
 case class Cons[+A](h: () => A, t: () => Stream[A]) extends Stream[A]
@@ -107,15 +136,37 @@ object Stream {
     case None => empty
   }
 
-//  Write fibs , from , constant , and ones in terms of unfold .
+  def from2(n: Int): Stream[Int] = unfold(cons(n, Empty)) (s => Some(s.headOption.get ,(cons( s.headOption.get + 1, s )) ))
+
+  def fromViaUnfold(n: Int): Stream[Int] = unfold(n)(s => Some((s,s+1)))
 
   def fibs2: Stream[Int] = {
-//    unfold()
-    null
+    unfold(cons((0, 1), Empty)) (s =>
+      Some(s.headOption.get._1,
+        cons(
+          (s.headOption.get._2, s.headOption.get._1 + s.headOption.get._2),
+          s
+        )
+      ))
   }
+
+  def constant2[A](a: A): Stream[A] = unfold(cons(a, Empty)) (s => Some(a, s) )
+
+  val ones2: Stream[Int] = unfold(cons(1, Empty)) (s => Some(1, s) )
+
+//   zipWith
+//  zipAll . The zipAll function should continue the traversal as long as either stream
+//    has more elements—it uses Option to indicate whether each stream has been
+//    exhausted.
+//  def zipAll[B](s2: Stream[B]): Stream[(Option[A],Option[B])] = ???
+
 
   def main(vars: Array[String]): Unit = {
     System.out.println(
+     Stream(1,2,3).takeWhile(_ <= 3).toList
+    )
+    System.out.println(
+      Stream(1,2,3).takeWhileViaUnfold(_ <= 3).toList
     )
   }
 }
