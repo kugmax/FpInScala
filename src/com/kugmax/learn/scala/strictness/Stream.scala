@@ -87,16 +87,42 @@ sealed trait Stream[+A] {
     case _ => None
   }
 
-  def zipWith[B, C](l2:Stream[B]) (f: (A,B) => C ): Stream[C] = {
-    null
+  def zipWith[B, C](l2:Stream[B]) (f: (A,B) => C ): Stream[C] = unfold(this, l2) {
+    case (Cons(h, t), Cons(h2, t2)) => Some( f(h(), h2()), (t(), t2()) )
+    case _ => None
   }
 
-  //  def zipWith[B, C](l2:Stream[B])(f: (A,B) => C ): Stream[C] = (l1,l2) match {
-//    case (Nil, _) => Nil
-//    case (_, Nil) => Nil
-//    case (Cons(h1,t1), Cons(h2,t2)) => Cons( f(h1, h2) , zipWith(t1,t2)(f)  )
-//  }
+  def zipAll[B](s2: Stream[B]): Stream[(Option[A],Option[B])] = unfold(this, s2) {
+    case (Cons(h, t), Cons(h2, t2)) => Some( (Some(h()), Some(h2())), (t(), t2()) )
+    case (Empty, Cons(h2, t2)) => Some( (None, Some(h2())), (Empty, t2()) )
+    case (Cons(h, t), Empty) => Some( (Some(h()), None), (t(), Empty) )
+    case _ => None
+  }
 
+  def startsWith[A](s2: Stream[A]): Boolean = (this, s2) match {
+    case (Cons(h, t), Cons(h2, t2)) => if (h() != h2()) false else t().startsWith(t2())
+    case _ => true
+  }
+
+  def startsWith2[A](s: Stream[A]): Boolean =
+    zipAll(s).takeWhile(!_._2.isEmpty) forAll {
+      case (h,h2) => h == h2
+    }
+
+  def tails: Stream[Stream[A]] = unfold(this) {
+    case Cons(h, t) => Some(Cons(h, t), t() )
+    case _ => None
+  } append Stream(Empty)
+
+  def scanRight[B](z: B)(f: (A, => B) => B): Stream[B] =
+    foldRight((z, Stream(z)))((a, p0) => {
+      // p0 is passed by-name and used in by-name args in f and cons. So use lazy val to ensure only one evaluation...
+      lazy val p1 = p0
+      val b2 = f(a, p1._1)
+      (b2, Cons(() => b2, () => p1._2))
+    })._2
+
+  def hasSubsequence[A](s: Stream[A]): Boolean = tails exists (_ startsWith s)
 }
 case object Empty extends Stream[Nothing]
 case class Cons[+A](h: () => A, t: () => Stream[A]) extends Stream[A]
@@ -154,19 +180,11 @@ object Stream {
 
   val ones2: Stream[Int] = unfold(cons(1, Empty)) (s => Some(1, s) )
 
-//   zipWith
-//  zipAll . The zipAll function should continue the traversal as long as either stream
-//    has more elements—it uses Option to indicate whether each stream has been
-//    exhausted.
-//  def zipAll[B](s2: Stream[B]): Stream[(Option[A],Option[B])] = ???
-
 
   def main(vars: Array[String]): Unit = {
     System.out.println(
-     Stream(1,2,3).takeWhile(_ <= 3).toList
+      Stream(1,2,3).scanRight(0)(_ + _).toList
     )
-    System.out.println(
-      Stream(1,2,3).takeWhileViaUnfold(_ <= 3).toList
-    )
+
   }
 }
