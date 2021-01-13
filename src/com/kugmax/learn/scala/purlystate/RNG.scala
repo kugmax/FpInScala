@@ -98,16 +98,37 @@ object SimpleRNG {
     else nonNegativeLessThan(n)(rng)
   }
 
-  def flatMap[A,B](f: Rand[A])(g: A => Rand[B]): Rand[B] = ???
+  def flatMap[A,B](f: Rand[A])(g: A => Rand[B]): Rand[B] = {
+    rng => {
+      val (v1, rng1) = f(rng)
+      g(v1)(rng1)
+    }
+  }
+
+  def nonNegativeLessThan_usingFlatMap(n: Int): Rand[Int] = {
+    flatMap(nonNegativeInt)(
+      i =>
+      {
+        val mod = i % n
+        if (i + (n-1) - mod >= 0)
+          unit(mod)
+        else nonNegativeLessThan(n)
+      }
+    )
+  }
+
+  def map_usingFlatMap[A,B](s: Rand[A])(f: A => B): Rand[B] = flatMap(s)(i => unit(f(i)))
+  def map2_usingFlatMap[A,B,C](ra: Rand[A], rb: Rand[B])(f: (A, B) => C): Rand[C] = flatMap(ra)(a => map(rb)(b => f(a, b)))
+
+  def rollDie: Rand[Int] = map(nonNegativeLessThan(6))(_ + 1)
+
+  def _map[S,A,B](a: S => (A,S))(f: A => B): S => (B,S) = ???
 
   def main(args: Array[String]): Unit = {
     val rng = SimpleRNG(13)
-    val (value, nRng) = nonNegativeEven(rng)
+    val (value, nRng) = nonNegativeLessThan_usingFlatMap(1)(rng)
 
     println(value, nRng)
-    println(ints2(7))
-
-
 
   }
 }
