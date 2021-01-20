@@ -1,6 +1,7 @@
 package com.kugmax.learn.scala.concurrent
 
 import java.util.concurrent.{Callable, ExecutorService, Future, TimeUnit}
+import scala.actors.Actor
 
 object Par {
   type Par[A] = ExecutorService => Future[A]
@@ -46,6 +47,9 @@ object Par {
       def call = a(es).get
     })
 
+  def delay[A](fa: => Par[A]): Par[A] =
+    es => fa(es)
+
   def lazyUnit[A](a: => A): Par[A] = fork(unit(a))
 
 //  def asyncF[A,B](f: A => B): A => Par[B] = _ => lazyUnit(f)
@@ -63,6 +67,48 @@ object Par {
   def sequence[A](ps: List[Par[A]]): Par[List[A]] =
     ps.foldRight[Par[List[A]]] (unit(List())) ((x, acc) => map2(x, acc)(_ :: _))
 
-  def parFilter[A](as: List[A])(f: A => Boolean): Par[List[A]] = ???
+  def parFilter[A](l: List[A])(f: A => Boolean): Par[List[A]] = {
+    val pars: List[Par[List[A]]] = l map (asyncF((a: A) => if (f(a)) List(a) else List()))
+    map(sequence(pars))(_.flatten) // convenience method on `List` for concatenating a list of lists
+  }
+
+  def choiceN[A](n: Par[Int])(choices: List[Par[A]]): Par[A] = {
+    es => {
+      val chosen = run(es)(n).get()
+      choices(chosen)(es)
+    }
+  }
+
+  def choice[A](cond: Par[Boolean])(t: Par[A], f: Par[A]): Par[A] = {
+    choiceN(map(cond)(c => if (c) 0 else 1 ) )(List(t, f))
+  }
+
+  def choiceMap[K,V](key: Par[K])(choices: Map[K,Par[V]]): Par[V] = {
+    es => {
+      val chosen = run(es)(key).get()
+      choices(chosen)(es)
+    }
+  }
+
+  def chooser[A,B](pa: Par[A])(choices: A => Par[B]): Par[B] = {
+    es => {
+      val chosen = run(es)(pa).get()
+      choices(chosen)(es)
+    }
+  }
+
+  def flatMap[A,B](p: Par[A])(choices: A => Par[B]): Par[B] =
+    es => {
+      val k = run(es)(p).get
+      run(es)(choices(k))
+    }
+
+  def joinViaFlatMap[A](a: Par[Par[A]]): Par[A] =
+    flatMap(a)(x => x)
+
+  def flatMapViaJoin[A,B](p: Par[A])(f: A => Par[B]): Par[B] =
+    join(map(p)(f))
+
+  def join[A](a: Par[Par[A]]): Par[A] = es => run(es)(run(es)(a).get())
 
 }
