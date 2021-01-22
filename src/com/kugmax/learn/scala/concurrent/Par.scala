@@ -1,7 +1,6 @@
 package com.kugmax.learn.scala.concurrent
 
 import java.util.concurrent.{Callable, ExecutorService, Future, TimeUnit}
-import scala.actors.Actor
 
 object Par {
   type Par[A] = ExecutorService => Future[A]

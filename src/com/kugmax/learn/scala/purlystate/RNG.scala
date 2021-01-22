@@ -124,6 +124,9 @@ object SimpleRNG {
 
   def _map[S,A,B](a: S => (A,S))(f: A => B): S => (B,S) = ???
 
+  def boolean(rng: RNG): (Boolean, RNG) =
+    rng.nextInt match { case (i,rng2) => (i%2==0,rng2) }
+
   def main(args: Array[String]): Unit = {
     val rng = SimpleRNG(13)
     val (value, nRng) = nonNegativeLessThan_usingFlatMap(1)(rng)
