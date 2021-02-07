@@ -4,7 +4,8 @@ import com.kugmax.learn.scala.testing._
 
 import scala.util.matching.Regex
 
-trait Parsers[ParseError, Parser[+_]] { self =>
+trait Parsers[Parser[+_]] { self =>
+  def run[A](p: Parser[A])(input: String): Either[ParseError,A]
 
 //  primitives:
   implicit def string(s: String): Parser[String]
@@ -15,9 +16,10 @@ trait Parsers[ParseError, Parser[+_]] { self =>
   //  def or[A](s1: Parser[A], s2: Parser[A]): Parser[A]
   def or[A](p1: Parser[A], p2: => Parser[A]): Parser[A]
   def flatMap[A,B](p: Parser[A])(f: A => Parser[B]): Parser[B]
+  def label[A](msg: String)(p: Parser[A]): Parser[A]
+  def scope[A](msg: String)(p: Parser[A]): Parser[A]
+  def attempt[A](p: Parser[A]): Parser[A]
 
-
-  def run[A](p: Parser[A])(input: String): Either[ParseError,A]
 
 //  def or[A](s1: Parser[A], s2: Parser[A]): Parser[A]
   def or[A](p1: Parser[A], p2: => Parser[A]): Parser[A]
@@ -61,6 +63,18 @@ trait Parsers[ParseError, Parser[+_]] { self =>
     def flatMap[B](f: A => Parser[B]): Parser[B] = self.flatMap(p)(f)
   }
 
+  case class ParseError(stack: List[(Location,String)])
+
+  case class Location(input: String, offset: Int = 0) {
+    lazy val line = input.slice(0,offset+1).count(_ == '\n') + 1
+    lazy val col = input.slice(0,offset+1).lastIndexOf('\n') match {
+      case -1 => offset + 1
+      case lineStart => offset - lineStart
+    }
+  }
+  def errorLocation(e: ParseError): Location
+  def errorMessage(e: ParseError): String
+
   object Laws {
     def equal[A](p1: Parser[A], p2: Parser[A])(in: Gen[String]): Prop =
       forAll(in)(s => run(p1)(s) == run(p2)(s))
@@ -70,6 +84,14 @@ trait Parsers[ParseError, Parser[+_]] { self =>
 
 //    run(succeed(a))(s) == Right(a)
 //    map(p)(a => a) == p
+
+//    def labelLaw[A](p: Parser[A], inputs: SGen[String]): Prop =
+//      forAll(inputs ** Gen.string) { case (input, msg) =>
+//        run(label(msg)(p))(input) match {
+//          case Left(e) => errorMessage(e) == msg
+//          case _ => true
+//        }
+//      }
   }
 
 }
