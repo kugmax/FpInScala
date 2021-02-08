@@ -22,7 +22,7 @@ trait Parsers[Parser[+_]] { self =>
 
 
 //  def or[A](s1: Parser[A], s2: Parser[A]): Parser[A]
-  def or[A](p1: Parser[A], p2: => Parser[A]): Parser[A]
+//  def or[A](p1: Parser[A], p2: => Parser[A]): Parser[A]
 
   implicit def operators[A](p: Parser[A]): ParserOps[A] = ParserOps[A](p)
   implicit def asStringParser[A](a: A)(implicit f: A => Parser[String]): ParserOps[String] = ParserOps(f(a))
