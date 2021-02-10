@@ -2,7 +2,7 @@ package com.kugmax.learn.scala.monoids
 
 import com.kugmax.learn.scala.concurrent.Par
 import com.kugmax.learn.scala.concurrent.Par.{Par, map2}
-import com.kugmax.learn.scala.datastructure.Tree
+import com.kugmax.learn.scala.datastructure.{Branch, Leaf, Tree}
 import com.kugmax.learn.scala.testing.Gen
 import com.kugmax.learn.scala.testing.Prop.{Prop, checkPar, equal, forAll, run}
 
@@ -52,6 +52,11 @@ object Monoid {
   def endoMonoid[A]: Monoid[A => A] = new Monoid[A => A] {
     override def op(a1: A => A, a2: A => A): A => A = a1.compose(a2)
     override def zero: A => A = (a: A) => a
+  }
+
+  def functionMonoid[A,B](b: Monoid[B]): Monoid[A => B] = new Monoid[A => B] {
+    override def op(a1: A => B, a2: A => B): A => B = (a: A) =>  b.op(a1(a), a2(a))
+    override def zero: A => B = _ => b.zero
   }
 
   def monoidLaws[A](m: Monoid[A], gen: Gen[A]): Prop = {
@@ -138,6 +143,9 @@ object Monoid {
 
     def concatenate[A](as: F[A])(m: Monoid[A]): A =
       foldLeft(as)(m.zero)(m.op)
+
+    def toList[A](fa: F[A]): List[A] =
+      foldRight(fa)(List[A]())(_::_)
   }
 
   val foldableList = new Foldable[List] {
@@ -159,13 +167,63 @@ object Monoid {
   }
 
   val foldableTree = new Foldable[Tree] {
-    override def foldRight[A, B](as: Tree[A])(z: B)(f: (A, B) => B): B = ???
+    override def foldRight[A, B](as: Tree[A])(z: B)(f: (A, B) => B): B = as match {
+      case Leaf(a) => f(a, z)
+      case Branch(left, right) => {
+        val r = foldRight(right)(z)(f)
+        foldRight(left)(r)(f)
+      }
+    }
 
-    override def foldLeft[A, B](as: Tree[A])(z: B)(f: (B, A) => B): B = ???
+    override def foldLeft[A, B](as: Tree[A])(z: B)(f: (B, A) => B): B = as match {
+      case Leaf(a) => f(z, a)
+      case Branch(left, right) => {
+        val l = foldLeft(left)(z)(f)
+        foldLeft(right)(l)(f)
+      }
+    }
 
-    override def foldMap[A, B](as: Tree[A])(f: A => B)(mb: Monoid[B]): B = ???
+    override def foldMap[A, B](as: Tree[A])(f: A => B)(mb: Monoid[B]): B = as match {
+      case Leaf(a) => f(a)
+      case Branch(l, r) => mb.op(foldMap(l)(f)(mb), foldMap(r)(f)(mb))
+    }
   }
 
+  val optionFoldable = new Foldable[Option] {
+    override def foldMap[A, B](as: Option[A])(f: A => B)(mb: Monoid[B]): B =
+      as match {
+        case None => mb.zero
+        case Some(a) => f(a)
+      }
+    override def foldLeft[A, B](as: Option[A])(z: B)(f: (B, A) => B) = as match {
+      case None => z
+      case Some(a) => f(z, a)
+    }
+    override def foldRight[A, B](as: Option[A])(z: B)(f: (A, B) => B) = as match {
+      case None => z
+      case Some(a) => f(a, z)
+    }
+  }
+
+  def productMonoid[A,B](ma: Monoid[A], mb: Monoid[B]): Monoid[(A,B)] =
+    new Monoid[(A, B)] {
+      override def op(a1: (A, B), a2: (A, B)): (A, B) = ( ma.op(a1._1, a2._1), mb.op(a1._2, a2._2) )
+
+      override def zero: (A, B) = (ma.zero, mb.zero)
+    }
+
+  def mapMergeMonoid[K,V](V: Monoid[V]): Monoid[Map[K, V]] =
+    new Monoid[Map[K, V]] {
+      def zero: Map[K, V] = Map[K,V]()
+
+      def op(a: Map[K, V], b: Map[K, V]): Map[K, V] =
+        (a.keySet ++ b.keySet).foldLeft(zero) { (acc,k) =>
+          acc.updated(k, V.op(a.getOrElse(k, V.zero),
+            b.getOrElse(k, V.zero)))
+        }
+    }
+
+  def bag[A](as: IndexedSeq[A]): Map[A, Int] = ???
 
   def main(args: Array[String]): Unit = {
 //    run(monoidLaws(intAddition, Gen.choose(0, 6)))
@@ -182,8 +240,10 @@ object Monoid {
 //    println(isOrdered(IndexedSeq(3, 2, 1)))
 //    println(isOrdered(IndexedSeq(2, 1, 3)))
 
-    run(monoidLaws(wcMonoid, Gen.unit("lorem ipsum do")))
+//    run(monoidLaws(wcMonoid, Gen.unit("lorem ipsum do")))
 //    run(monoidLaws(wcMonoid, Gen.unit("lor sit amet, ")))
+
+    println(bag(Vector("a", "rose", "is", "a", "rose")))
   }
 
  }
