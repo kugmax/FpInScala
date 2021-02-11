@@ -13,13 +13,13 @@ trait Monoid[A] {
 
 object Monoid {
 
-  val stringMonoid = new Monoid[String] {
+  val stringMonoid: Monoid[String] = new Monoid[String] {
     def op(a1: String, a2: String): String = a1 + a2
     val zero = ""
   }
 
-  def listMonoid[A] = new Monoid[List[A]] {
-    def op(a1: List[A], a2: List[A]) = a1 ++ a2
+  def listMonoid[A]: Monoid[List[A]] = new Monoid[List[A]] {
+    def op(a1: List[A], a2: List[A]): List[A] = a1 ++ a2
     val zero = Nil
   }
 
@@ -218,12 +218,31 @@ object Monoid {
 
       def op(a: Map[K, V], b: Map[K, V]): Map[K, V] =
         (a.keySet ++ b.keySet).foldLeft(zero) { (acc,k) =>
-          acc.updated(k, V.op(a.getOrElse(k, V.zero),
-            b.getOrElse(k, V.zero)))
+          acc.updated(k,
+            V.op(a.getOrElse(k, V.zero), b.getOrElse(k, V.zero))
+          )
         }
     }
 
-  def bag[A](as: IndexedSeq[A]): Map[A, Int] = ???
+  def bag[A](as: IndexedSeq[A]): Map[A, Int] = {
+    val bagMonoid = new Monoid[Map[A, Int]] {
+
+      override def op(a: Map[A, Int], b: Map[A, Int]): Map[A, Int] = {
+        (a.keySet ++ b.keySet).foldLeft(zero) { (acc,k) =>
+          acc.updated(k,
+            a.getOrElse(k, 0) + b.getOrElse(k, 0)
+          )
+        }
+      }
+
+      override def zero: Map[A, Int] = Map[A, Int]()
+    }
+
+    as.foldRight(bagMonoid.zero)( (a, acc) => bagMonoid.op(Map( (a, 1) ), acc) )
+  }
+
+  def _bag[A](as: IndexedSeq[A]): Map[A, Int] =
+    foldMapV(as, mapMergeMonoid[A, Int](intAddition))((a: A) => Map(a -> 1))
 
   def main(args: Array[String]): Unit = {
 //    run(monoidLaws(intAddition, Gen.choose(0, 6)))
