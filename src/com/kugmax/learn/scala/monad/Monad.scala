@@ -55,6 +55,18 @@ trait Monad[F[_]] extends Functor[F] {
   def _compose[A,B,C](f: A => F[B], g: B => F[C]): A => F[C] =
     a => join(map(f(a))(g))
 
+
+  def compose[G[_]](g: Monad[G]): Monad[({type f[x] = F[G[x]]})#f] = {
+    val self = this
+    new Monad[({type f[x] = F[G[x]]})#f] {
+
+      override def unit[A](a: => A): F[G[A]] = self.unit(g.unit(a))
+
+      override def flatMap[A, B](ma: F[G[A]])(f: A => F[G[B]]): F[G[B]] = ???
+    }
+  }
+
+  def sequenceMap[K,V](ofa: Map[K,F[V]]): F[Map[K,V]] = ???
 }
 
 object Monad {
