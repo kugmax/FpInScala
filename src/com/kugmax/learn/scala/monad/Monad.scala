@@ -65,8 +65,6 @@ trait Monad[F[_]] extends Functor[F] {
       override def flatMap[A, B](ma: F[G[A]])(f: A => F[G[B]]): F[G[B]] = ???
     }
   }
-
-  def sequenceMap[K,V](ofa: Map[K,F[V]]): F[Map[K,V]] = ???
 }
 
 object Monad {

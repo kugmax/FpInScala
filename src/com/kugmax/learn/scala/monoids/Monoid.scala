@@ -136,9 +136,18 @@ object Monoid {
     }
   }
 
+  def dual[A](m: Monoid[A]): Monoid[A] = new Monoid[A] {
+    def op(x: A, y: A): A = m.op(y, x)
+    val zero = m.zero
+  }
+
   trait Foldable[F[_]] {
-    def foldRight[A,B](as: F[A])(z: B)(f: (A,B) => B): B
-    def foldLeft[A,B](as: F[A])(z: B)(f: (B,A) => B): B
+    def foldRight[A,B](as: F[A])(z: B)(f: (A,B) => B): B =
+      foldMap(as)(f.curried)(endoMonoid[B])(z)
+
+    def foldLeft[A,B](as: F[A])(z: B)(f: (B,A) => B): B =
+      foldMap(as)(a => (b: B) => f(b, a))(dual(endoMonoid[B]))(z)
+
     def foldMap[A,B](as: F[A])(f: A => B)(mb: Monoid[B]): B
 
     def concatenate[A](as: F[A])(m: Monoid[A]): A =
