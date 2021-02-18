@@ -301,11 +301,6 @@ object GeneralizedStreamTransducers {
   trait Process[F[_],O] {
     import Process._
 
-    /*
-     * Many of the same operations can be defined for this generalized
-     * `Process` type, regardless of the choice of `F`.
-     */
-
     def map[O2](f: O => O2): Process[F,O2] = this match {
       case Await(req,recv) =>
         Await(req, recv andThen (_ map f))
@@ -319,9 +314,6 @@ object GeneralizedStreamTransducers {
         case err => Halt(err)
       }
 
-    /*
-     * Like `++`, but _always_ runs `p`, even if `this` halts with an error.
-     */
     def onComplete(p: => Process[F,O]): Process[F,O] =
       this.onHalt {
         case End => p.asFinalizer
@@ -343,10 +335,6 @@ object GeneralizedStreamTransducers {
       case Await(req,recv) => Await(req, recv andThen (_.onHalt(f)))
     }
 
-    /*
-     * Anywhere we _call_ `f`, we catch exceptions and convert them to `Halt`.
-     * See the helper function `Try` defined below.
-     */
     def flatMap[O2](f: O => Process[F,O2]): Process[F,O2] =
       this match {
         case Halt(err) => Halt(err)
@@ -360,8 +348,6 @@ object GeneralizedStreamTransducers {
 
     def repeatNonempty: Process[F,O] = {
       val cycle = (this.map(o => Some(o): Option[O]) ++ emit(None)).repeat
-      // cut off the cycle when we see two `None` values in a row, as this
-      // implies `this` has produced no values during an iteration
       val trimmed = cycle |> window2 |> (takeWhile {
         case (Some(None), None) => false
         case _ => true
@@ -372,26 +358,22 @@ object GeneralizedStreamTransducers {
       }
     }
 
-    /*
-     * Exercise 10: This function is defined only if given a `MonadCatch[F]`.
-     * Unlike the simple `runLog` interpreter defined in the companion object
-     * below, this is not tail recursive and responsibility for stack safety
-     * is placed on the `Monad` instance.
-     */
-    def runLog(implicit F: MonadCatch[F]): F[IndexedSeq[O]] = ???
+    trait MonadCatch[F[_]] extends Monad[F] {
+      def attempt[A](a: F[A]): F[Either[Throwable,A]]
+      def fail[A](t: Throwable): F[A]
+    }
 
-    /*
-     * We define `Process1` as a type alias - see the companion object
-     * for `Process` below. Using that, we can then define `|>` once
-     * more. The definition is extremely similar to our previous
-     * definition. We again use the helper function, `feed`, to take
-     * care of the case where `this` is emitting values while `p2`
-     * is awaiting these values.
-     *
-     * The one subtlety is we make sure that if `p2` halts, we
-     * `kill` this process, giving it a chance to run any cleanup
-     * actions (like closing file handles, etc).
-     */
+    def runLog(implicit F: MonadCatch[F]): F[IndexedSeq[O]] = {
+      def go(cur: Process[F,O], acc: IndexedSeq[O]): F[IndexedSeq[O]] =
+        cur match {
+          case Emit(h,t) => go(t, acc :+ h)
+          case Halt(End) => F.unit(acc)
+          case Halt(err) => F.fail(err)
+          case Await(req,recv) => F.flatMap (F.attempt(req)) { e => go(Try(recv(e)), acc) }
+        }
+      go(this, IndexedSeq())
+    }
+
     def |>[O2](p2: Process1[O,O2]): Process[F,O2] = {
       p2 match {
         case Halt(e) => this.kill onHalt { e2 => Halt(e) ++ Halt(e2) }
@@ -485,26 +467,13 @@ object GeneralizedStreamTransducers {
     def await[F[_],A,O](req: F[A])(recv: Either[Throwable,A] => Process[F,O]): Process[F,O] =
       Await(req, recv)
 
-    /**
-     * Helper function to safely produce `p`, or gracefully halt
-     * with an error if an exception is thrown.
-     */
     def Try[F[_],O](p: => Process[F,O]): Process[F,O] =
       try p
       catch { case e: Throwable => Halt(e) }
 
-    /*
-     * Safely produce `p`, or run `cleanup` and halt gracefully with the
-     * exception thrown while evaluating `p`.
-     */
     def TryOr[F[_],O](p: => Process[F,O])(cleanup: Process[F,O]): Process[F,O] =
       try p
       catch { case e: Throwable => cleanup ++ Halt(e) }
-
-    /*
-     * Safely produce `p`, or run `cleanup` or `fallback` if an exception
-     * occurs while evaluating `p`.
-     */
     def TryAwait[F[_],O](p: => Process[F,O])(fallback: Process[F,O], cleanup: Process[F,O]): Process[F,O] =
       try p
       catch {
@@ -512,27 +481,10 @@ object GeneralizedStreamTransducers {
         case e: Throwable => cleanup ++ Halt(e)
       }
 
-    /* Our generalized `Process` type can represent sources! */
-
-    import fpinscala.iomonad.IO
-
-    /* Special exception indicating normal termination */
     case object End extends Exception
 
-    /* Special exception indicating forceful termination */
     case object Kill extends Exception
 
-    /*
-     * A `Process[F,O]` where `F` is a monad like `IO` can be thought of
-     * as a source.
-     */
-
-    /*
-     * Here is a simple tail recursive function to collect all the
-     * output of a `Process[IO,O]`. Notice we are using the fact
-     * that `IO` can be `run` to produce either a result or an
-     * exception.
-     */
     def runLog[O](src: Process[IO,O]): IO[IndexedSeq[O]] = IO {
       val E = java.util.concurrent.Executors.newFixedThreadPool(4)
       @annotation.tailrec
@@ -543,18 +495,13 @@ object GeneralizedStreamTransducers {
           case Halt(err) => throw err
           case Await(req,recv) =>
             val next =
-              try recv(Right(fpinscala.iomonad.unsafePerformIO(req)(E)))
+              try recv(Right(unsafePerformIO(req)(E)))
               catch { case err: Throwable => recv(Left(err)) }
             go(next, acc)
         }
       try go(src, IndexedSeq())
       finally E.shutdown
     }
-
-    /*
-     * We can write a version of collect that works for any `Monad`.
-     * See the definition in the body of `Process`.
-     */
 
     import java.io.{BufferedReader,FileReader}
     val p: Process[IO, String] =
@@ -568,30 +515,16 @@ object GeneralizedStreamTransducers {
         case Left(e) => Halt(e)
       }
 
-    /*
-     * Generic combinator for producing a `Process[IO,O]` from some
-     * effectful `O` source. The source is tied to some resource,
-     * `R` (like a file handle) that we want to ensure is released.
-     * See `lines` below for an example use.
-     */
     def resource[R,O](acquire: IO[R])(
       use: R => Process[IO,O])(
                        release: R => Process[IO,O]): Process[IO,O] =
       eval(acquire) flatMap { r => use(r).onComplete(release(r)) }
 
-    /*
-     * Like `resource`, but `release` is a single `IO` action.
-     */
     def resource_[R,O](acquire: IO[R])(
       use: R => Process[IO,O])(
                         release: R => IO[Unit]): Process[IO,O] =
       resource(acquire)(use)(release andThen (eval_[IO,Unit,O]))
 
-    /*
-     * Create a `Process[IO,O]` from the lines of a file, using
-     * the `resource` combinator above to ensure the file is closed
-     * when processing the stream of lines is finished.
-     */
     def lines(filename: String): Process[IO,String] =
       resource
       { IO(io.Source.fromFile(filename)) }
@@ -606,22 +539,17 @@ object GeneralizedStreamTransducers {
       }
       { src => eval_ { IO(src.close) } }
 
-    /* Exercise 11: Implement `eval`, `eval_`, and use these to implement `lines`. */
-    def eval[F[_],A](a: F[A]): Process[F,A] = ???
+    def eval[F[_],A](a: F[A]): Process[F,A] =
+      await[F,A,A](a) {
+        case Left(err) => Halt(err)
+        case Right(a) => Emit(a, Halt(End))
+      }
 
-    /* Evaluate the action purely for its effects. */
-    def eval_[F[_],A,B](a: F[A]): Process[F,B] = ???
+    def eval_[F[_],A,B](a: F[A]): Process[F,B] =
+      eval[F,A](a).drain[B]
 
-    /* Helper function with better type inference. */
     def evalIO[A](a: IO[A]): Process[IO,A] =
       eval[IO,A](a)
-
-    /*
-     * We now have nice, resource safe effectful sources, but we don't
-     * have any way to transform them or filter them. Luckily we can
-     * still represent the single-input `Process` type we introduced
-     * earlier, which we'll now call `Process1`.
-     */
 
     case class Is[I]() {
       sealed trait f[X]
@@ -631,7 +559,6 @@ object GeneralizedStreamTransducers {
 
     type Process1[I,O] = Process[Is[I]#f, O]
 
-    /* Some helper functions to improve type inference. */
 
     def await1[I,O](
                      recv: I => Process1[I,O],
@@ -652,8 +579,6 @@ object GeneralizedStreamTransducers {
 
     def filter[I](f: I => Boolean): Process1[I,I] =
       await1[I,I](i => if (f(i)) emit(i) else halt1) repeat
-
-    // we can define take, takeWhile, and so on as before
 
     def take[I](n: Int): Process1[I,I] =
       if (n <= 0) halt1
@@ -682,17 +607,6 @@ object GeneralizedStreamTransducers {
     def intersperse[I](sep: I): Process1[I,I] =
       await1[I,I](i => emit1(i) ++ id.flatMap(i => emit1(sep) ++ emit1(i)))
 
-    /*
-We sometimes need to construct a `Process` that will pull values
-from multiple input sources. For instance, suppose we want to
-'zip' together two files, `f1.txt` and `f2.txt`, combining
-corresponding lines in some way. Using the same trick we used for
-`Process1`, we can create a two-input `Process` which can request
-values from either the 'left' stream or the 'right' stream. We'll
-call this a `Tee`, after the letter 'T', which looks like a
-little diagram of two inputs being combined into one output.
-     */
-
     case class T[I,I2]() {
       sealed trait f[X] { def get: Either[I => X, I2 => X] }
       val L = new f[I] { def get = Left(identity) }
@@ -703,7 +617,6 @@ little diagram of two inputs being combined into one output.
 
     type Tee[I,I2,O] = Process[T[I,I2]#f, O]
 
-    /* Again some helper functions to improve type inference. */
 
     def haltT[I,I2,O]: Tee[I,I2,O] =
       Halt[T[I,I2]#f,O](End)
@@ -733,23 +646,13 @@ little diagram of two inputs being combined into one output.
 
     def zip[I,I2]: Tee[I,I2,(I,I2)] = zipWith((_,_))
 
-    /* Ignores all input from left. */
     def passR[I,I2]: Tee[I,I2,I2] = awaitR(emitT(_, passR))
 
-    /* Ignores input from the right. */
     def passL[I,I2]: Tee[I,I2,I] = awaitL(emitT(_, passL))
 
-    /* Alternate pulling values from the left and the right inputs. */
     def interleaveT[I]: Tee[I,I,I] =
       awaitL[I,I,I](i =>
         awaitR       (i2 => emitT(i) ++ emitT(i2))) repeat
-
-    /*
-Our `Process` type can also represent effectful sinks (like a file).
-A `Sink` is simply a source of effectful functions! See the
-definition of `to` in `Process` for an example of how to feed a
-`Process` to a `Sink`.
-     */
 
     type Sink[F[_],O] = Process[F, O => Process[F,Unit]]
 
@@ -766,15 +669,8 @@ definition of `to` in `Process` for an example of how to feed a
     def constant[A](a: A): Process[IO,A] =
       eval(IO(a)).flatMap { a => Emit(a, constant(a)) }
 
-    /* Exercise 12: Implement `join`. Notice this is the standard monadic combinator! */
-    def join[F[_],A](p: Process[F,Process[F,A]]): Process[F,A] = ???
-
-    /*
-     * An example use of the combinators we have so far: incrementally
-     * convert the lines of a file from fahrenheit to celsius.
-     */
-
-    import fpinscala.iomonad.IO0.fahrenheitToCelsius
+    def join[F[_],A](p: Process[F,Process[F,A]]): Process[F,A] =
+      p.flatMap(a => a)
 
     val converter: Process[IO,Unit] =
       lines("fahrenheit.txt").
@@ -784,20 +680,8 @@ definition of `to` in `Process` for an example of how to feed a
         to(fileW("celsius.txt")).
         drain
 
-    /*
-More generally, we can feed a `Process` through an effectful
-channel which returns a value other than `Unit`.
-     */
 
     type Channel[F[_],I,O] = Process[F, I => Process[F,O]]
-
-    /*
-     * Here is an example, a JDBC query runner which returns the
-     * stream of rows from the result set of the query. We have
-     * the channel take a `Connection => PreparedStatement` as
-     * input, so code that uses this channel does not need to be
-     * responsible for knowing how to obtain a `Connection`.
-     */
     import java.sql.{Connection, PreparedStatement, ResultSet}
 
     def query(conn: IO[Connection]):
@@ -827,12 +711,6 @@ channel which returns a value other than `Unit`.
       }}
       { c => IO(c.close) }
 
-    /*
-     * We can allocate resources dynamically when defining a `Process`.
-     * As an example, this program reads a list of filenames to process
-     * _from another file_, opening each file, processing it and closing
-     * it promptly.
-     */
 
     val convertAll: Process[IO,Unit] = (for {
       out <- fileW("celsius.txt").once
@@ -842,10 +720,6 @@ channel which returns a value other than `Unit`.
         flatMap(celsius => out(celsius.toString))
     } yield ()) drain
 
-    /*
-     * Just by switching the order of the `flatMap` calls, we can output
-     * to multiple files.
-     */
     val convertMultisink: Process[IO,Unit] = (for {
       file <- lines("fahrenheits.txt")
       _ <- lines(file).
@@ -854,16 +728,12 @@ channel which returns a value other than `Unit`.
         to(fileW(file + ".celsius"))
     } yield ()) drain
 
-    /*
-     * We can attach filters or other transformations at any point in the
-     * program, for example:
-     */
     val convertMultisink2: Process[IO,Unit] = (for {
       file <- lines("fahrenheits.txt")
       _ <- lines(file).
         filter(!_.startsWith("#")).
         map(line => fahrenheitToCelsius(line.toDouble)).
-        filter(_ > 0). // ignore below zero temperatures
+        filter(_ > 0).
         map(_ toString).
         to(fileW(file + ".celsius"))
     } yield ()) drain
@@ -872,7 +742,6 @@ channel which returns a value other than `Unit`.
 
 object ProcessTest extends App {
   import GeneralizedStreamTransducers._
-  import fpinscala.iomonad.IO
   import Process._
 
   val p = eval(IO { println("woot"); 1 }).repeat
